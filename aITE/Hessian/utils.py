@@ -1,6 +1,7 @@
 import numpy as np
 from mindquantum.core.operators import QubitOperator
 from mindquantum import Hamiltonian
+from mindquantum.core.parameterresolver import ParameterResolver as PR
 
 def pr2array(pr):
     parameters = []

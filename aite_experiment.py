@@ -38,21 +38,21 @@ def get_system(key='LiH'):
     return molecule_of, Hamiltonian(hamiltonian_QubitOp)
 
 
-class Optimizer:
-    def __init__(self, learn_rate=10, decay_rate=0.01):
-        self.diff = np.zeros(1).astype(np.float32)
-        self.learn_rate = learn_rate
-        self.decay_rate = decay_rate
+# class Optimizer:
+#     def __init__(self, learn_rate=10, decay_rate=0.01):
+#         self.diff = np.zeros(1).astype(np.float32)
+#         self.learn_rate = learn_rate
+#         self.decay_rate = decay_rate
         
-    def step(self, vector, grad):
-        # Performing the gradient descent loop
-        vector = vector.astype(np.float32)
-        # grad = grad.squeeze(0).squeeze(0)
-        grad = grad.astype(np.float32)
+#     def step(self, vector, grad):
+#         # Performing the gradient descent loop
+#         vector = vector.astype(np.float32)
+#         # grad = grad.squeeze(0).squeeze(0)
+#         grad = grad.astype(np.float32)
 
-        self.diff = self.decay_rate * self.diff - self.learn_rate * grad
-        vector += self.diff
-        return vector
+#         self.diff = self.decay_rate * self.diff - self.learn_rate * grad
+#         vector += self.diff
+#         return vector
 
 
 from mindquantum import Circuit, RY, RX, RZ
@@ -60,7 +60,7 @@ from mindquantum import X, Z, Y
 import numpy as np
 import math
 from mindquantum.core import ParameterResolver
-from mindquantum.core.parameterresolver import ParameterResolver as PR
+
 
 class Parameter_manager:
     def __init__(self):
@@ -108,9 +108,10 @@ def layer(circ, P, n_qubits):
         RZZ_gate(circ, i, i+1, P)
 
 
-from Hessian.gradients import Grad, FisherInformation
+# from Hessian.gradients import Grad, FisherInformation
+from aITE.optimizer import Optimizer
 class VQE:
-    def __init__(self, key='LiH'):
+    def __init__(self, key='LiH', opt_type='aite', lr=0.1):
         molecule_of, self.ham = get_system(key=key)
         self.n_qubits = molecule_of.n_qubits
         self.fci_energy = molecule_of.fci_energy
@@ -120,54 +121,60 @@ class VQE:
         layer(self.circ, self.P, self.n_qubits)
         self.pr = self.P.init_parameter_resolver()
 
-        self.optimizer = Optimizer(learn_rate=1.0)
-
-    def pr2array(self, pr):
-        parameters = []
-        k_list = []
-        for k in pr.keys():
-            k_list.append(k)
-            parameters.append(pr[k])
-
-        parameters = np.array(parameters)
-        return parameters, k_list
-
-    def array2pr(self, parameters, k_list):
-        _pr = {}
-        for k, p in zip(k_list, parameters.tolist()):
-            _pr[k] = p
-        pr = PR(_pr)
-        return pr
-
-    def gradient_descent_step(self):
-        parameters, k_list = self.pr2array(self.pr)
-        g = Grad(self.circ, self.pr, self.ham, self.n_qubits).grad_reserveMode()
-        parameters = self.optimizer.step(parameters, g).real
-        self.pr = self.array2pr(parameters, k_list)
+        # self.optimizer = Optimizer(learn_rate=1.0)
+        self.optimizer = Optimizer(self.circ, self.pr, self.n_qubits, opt_type=opt_type, lr=lr)
 
 
-    def imaginary_time_evolution_step(self):
-        parameters, k_list = self.pr2array(self.pr)
+    def step(self):
+        self.optimizer.step(self.ham)
+        self.pr = self.optimizer.pr
 
-        g = Grad(self.circ, self.pr, self.ham, self.n_qubits).grad_reserveMode()
-        h = FisherInformation(self.circ, self.pr, self.n_qubits).gite_preconditional()
+    # def pr2array(self, pr):
+    #     parameters = []
+    #     k_list = []
+    #     for k in pr.keys():
+    #         k_list.append(k)
+    #         parameters.append(pr[k])
 
-        g = np.linalg.inv(h + np.eye(len(h))*1e-15).dot(g[:, np.newaxis]).squeeze(1) * (-1)
+    #     parameters = np.array(parameters)
+    #     return parameters, k_list
 
-        parameters = self.optimizer.step(parameters, g).real
-        self.pr = self.array2pr(parameters, k_list)
+    # def array2pr(self, parameters, k_list):
+    #     _pr = {}
+    #     for k, p in zip(k_list, parameters.tolist()):
+    #         _pr[k] = p
+    #     pr = PR(_pr)
+    #     return pr
+
+    # def gradient_descent_step(self):
+    #     parameters, k_list = self.pr2array(self.pr)
+    #     g = Grad(self.circ, self.pr, self.ham, self.n_qubits).grad_reserveMode()
+    #     parameters = self.optimizer.step(parameters, g).real
+    #     self.pr = self.array2pr(parameters, k_list)
 
 
-    def natural_gradient_step(self):
-        parameters, k_list = self.pr2array(self.pr)
+    # def imaginary_time_evolution_step(self):
+    #     parameters, k_list = self.pr2array(self.pr)
 
-        g = Grad(self.circ, self.pr, self.ham, self.n_qubits).grad_reserveMode()
-        h = FisherInformation(self.circ, self.pr, self.n_qubits).fisher_information()
+    #     g = Grad(self.circ, self.pr, self.ham, self.n_qubits).grad_reserveMode()
+    #     h = FisherInformation(self.circ, self.pr, self.n_qubits).gite_preconditional()
 
-        g = np.linalg.inv(h + np.eye(len(h))*1e-15).dot(g[:, np.newaxis]).squeeze(1) * (-1)
+    #     g = np.linalg.inv(h + np.eye(len(h))*1e-15).dot(g[:, np.newaxis]).squeeze(1) * (-1)
 
-        parameters = self.optimizer.step(parameters, g).real
-        self.pr = self.array2pr(parameters, k_list)
+    #     parameters = self.optimizer.step(parameters, g).real
+    #     self.pr = self.array2pr(parameters, k_list)
+
+
+    # def natural_gradient_step(self):
+    #     parameters, k_list = self.pr2array(self.pr)
+
+    #     g = Grad(self.circ, self.pr, self.ham, self.n_qubits).grad_reserveMode()
+    #     h = FisherInformation(self.circ, self.pr, self.n_qubits).fisher_information()
+
+    #     g = np.linalg.inv(h + np.eye(len(h))*1e-15).dot(g[:, np.newaxis]).squeeze(1) * (-1)
+
+    #     parameters = self.optimizer.step(parameters, g).real
+    #     self.pr = self.array2pr(parameters, k_list)
 
 
     def eval(self):
@@ -178,12 +185,13 @@ class VQE:
 
 
 if __name__ == '__main__':
-    V = VQE(key='H2')
+    V = VQE(key='H2', opt_type='aite', lr=0.1)
     for i in range(100):
 
         # V.gradient_descent_step()
         # V.imaginary_time_evolution_step()
-        V.natural_gradient_step()
+        # V.natural_gradient_step()
+        V.step()
 
         E = V.eval()
         print(E, V.fci_energy)
