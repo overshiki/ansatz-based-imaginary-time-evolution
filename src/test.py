@@ -1,7 +1,7 @@
 import numpy as np
-from faithful_gradients.helper import Gradient_test
-from faithful_gradients.utils import Ising_like_ham
-from faithful_gradients.gradients import Grad 
+from Hessian.helper import Gradient_test
+from Hessian.utils import Ising_like_ham
+from Hessian.gradients import Grad 
 from timeit import default_timer
 
 n_qubits = 3

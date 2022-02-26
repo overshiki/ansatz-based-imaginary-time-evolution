@@ -108,7 +108,7 @@ def layer(circ, P, n_qubits):
         RZZ_gate(circ, i, i+1, P)
 
 
-from faithful_gradients.gradients import Grad, FisherInformation
+from Hessian.gradients import Grad, FisherInformation
 class VQE:
     def __init__(self, key='LiH'):
         molecule_of, self.ham = get_system(key=key)

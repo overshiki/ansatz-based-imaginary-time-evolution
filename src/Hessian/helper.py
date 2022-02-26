@@ -112,11 +112,11 @@ class Gradient_test:
         self.phase_shift = None
         
     def determine_phase_shift(self, ham):
-        self.phase_shift = -1
-#         jac, _ = self._gradient(ham, 1)
-#         jac_reverse = self.grad_reserveMode(ham)
-#         self.phase_shift = jac.mean() / jac_reverse.mean()
-#         self.pahse_shift = self.phase_shift / np.abs(self.phase_shift)
+        # self.phase_shift = -1
+        jac, _ = self._gradient(ham, 1)
+        jac_reverse = self.grad_reserveMode(ham)
+        self.phase_shift = jac.mean() / jac_reverse.mean()
+        self.pahse_shift = self.phase_shift / np.abs(self.phase_shift)
         
     def gradient(self, ham):
         if self.phase_shift is None:

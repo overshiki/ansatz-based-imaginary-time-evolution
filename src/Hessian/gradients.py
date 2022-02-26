@@ -2,12 +2,19 @@ import mindquantum.core.gates as G
 from mindquantum.simulator import Simulator
 from mindquantum.core.operators import QubitOperator
 from mindquantum import Hamiltonian
+from mindquantum import Circuit
 import copy
 import numpy as np
 
-from .utils import pr2array
+from .utils import pr2array, Ising_like_ham
+from .helper import Parameter_manager, layer
 
-
+def example_circuit(n_qubits=5):
+    circ = Circuit()
+    P = Parameter_manager()
+    layer(circ, P, n_qubits)
+    pr = P.init_parameter_resolver()
+    return circ, pr
 
 def get_gradient_preconditional(gate):
     if isinstance(gate, G.RX):
@@ -30,6 +37,9 @@ def grad_circuit_symbolic_forward(circ):
             circ_coeff_list.append(-1./2 * J) #for example, grad(RX) = -j X RX
     return circ_list, circ_coeff_list
 
+
+PHASE_SHIFT = None
+
 class Grad:
     def __init__(self, circ, pr, ham, n_qubits):
         self.circ, self.pr, self.ham = circ, pr, ham
@@ -39,22 +49,11 @@ class Grad:
 
         assert len(self.circ_list)==len(self.k_list), '{} vs {}'.format(len(self.circ_list), len(self.k_list))
 
-        self.phase_shift = None
-        
-    def determine_phase_shift(self):
-        self.phase_shift = -1
-#         jac, _ = self._grad(1)
-#         jac_reverse = self.grad_reserveMode()
-#         self.phase_shift = jac.real.mean() / jac_reverse.real.mean()
-#         self.pahse_shift = self.phase_shift / np.abs(self.phase_shift)
-#         print('phase_shift', self.phase_shift)
-#         indices = np.argsort(jac)[::-1]
-#         print(jac[indices[:5]], jac_reverse[indices[:5]], jac.max(), jac.min(), jac_reverse.max(), jac_reverse.min())
         
     def grad(self):
-        if self.phase_shift is None:
-            self.determine_phase_shift()
-        return self._grad(self.phase_shift)
+        if PHASE_SHIFT is None:
+            raise ValueError()
+        return self._grad(PHASE_SHIFT)
         
     def _grad(self, phase_shift):
         r'''
@@ -79,8 +78,7 @@ class Grad:
         r'''
         calculate Hessian using forward mode
         '''
-        if self.phase_shift is None:
-            self.determine_phase_shift()
+        phase_shift = PHASE_SHIFT
             
         hess = np.zeros((len(self.parameters), len(self.parameters))).astype(np.complex)
         for i, (circ_left, coeff_left) in enumerate(zip(self.circ_list, self.circ_coeff_list)):
@@ -91,7 +89,7 @@ class Grad:
 
                 grad_ops = sim.get_expectation_with_grad(self.ham, circ_right, circ_left)
                 e, g = grad_ops(self.parameters)
-                hess[i][j] = e[0][0] * coeff_left * coeff_right * self.phase_shift * self.phase_shift #* J
+                hess[i][j] = e[0][0] * coeff_left * coeff_right * phase_shift * phase_shift #* J
 
         return hess.real
 
@@ -103,6 +101,30 @@ class Grad:
         grad_ops = sim.get_expectation_with_grad(self.ham, self.circ, self.circ)
         e, g = grad_ops(self.parameters)
         return g.squeeze().real
+
+
+def get_phase_shift(self):
+    jac, _ = self._grad(1)
+    jac_reverse = self.grad_reserveMode()
+    phase_shift = jac.real.mean() / jac_reverse.real.mean()
+    phase_shift = phase_shift / np.abs(phase_shift)
+    print('phase_shift', phase_shift)
+    return phase_shift
+
+def determine_phase_shift():
+    n_qubits = 5
+    circ, pr = example_circuit(n_qubits=n_qubits)
+    ham = Ising_like_ham(n_qubits).local_Hamiltonian()
+
+    class Phase_shift_getter(Grad):
+        pass
+
+    Phase_shift_getter.get_phase_shift = get_phase_shift
+    ph = Phase_shift_getter(circ, pr, ham, n_qubits)
+    return ph.get_phase_shift()
+
+PHASE_SHIFT = determine_phase_shift()
+
 
 
 class FisherInformation:
